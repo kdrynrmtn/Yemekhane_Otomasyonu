@@ -41,8 +41,8 @@ services:
   mysql-primary:
     <<: *mysql-ortak
     command: [--server-id=1, --gtid-mode=ON, --enforce-gtid-consistency=ON, --log-bin=mysql-bin,
-              --character-set-server=utf8mb4, --collation-server=utf8mb4_tr_0900_ai_ci,
-              --default-time-zone=+03:00]
+             --character-set-server=utf8mb4, --collation-server=utf8mb4_tr_0900_ai_ci,
+             --default-time-zone=+03:00]
     environment:
       TZ: Europe/Istanbul
       MYSQL_ROOT_PASSWORD: yemekhane_kok
@@ -61,8 +61,8 @@ services:
   mysql-replica:
     <<: *mysql-ortak
     command: [--server-id=2, --gtid-mode=ON, --enforce-gtid-consistency=ON, --log-bin=mysql-bin,
-              --character-set-server=utf8mb4, --collation-server=utf8mb4_tr_0900_ai_ci,
-              --default-time-zone=+03:00, --relay-log=relay-bin]
+             --character-set-server=utf8mb4, --collation-server=utf8mb4_tr_0900_ai_ci,
+             --default-time-zone=+03:00, --relay-log=relay-bin]
     environment:
       TZ: Europe/Istanbul
       MYSQL_ROOT_PASSWORD: yemekhane_kok
@@ -138,18 +138,20 @@ services:
   # 2. Uygulama container içinde 8000 portunu dinlesin (ya da UYGULAMA_ADRES'i değiştirin).
   # 3. Aşağıdaki satırların başındaki "# " işaretlerini kaldırın.
   # ---------------------------------------------------------------
-  # uygulama:
-  #   build: ./uygulama
-  #   restart: unless-stopped
-  #   environment:
-  #     <<: *uygulama-ortam
-  #   depends_on:
-  #     mysql-primary:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     replica-setup:
-  #       condition: service_completed_successfully
+  uygulama:
+    build: ./uygulama
+    restart: unless-stopped
+    environment:
+      <<: *uygulama-ortam
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      replica-setup:
+        condition: service_completed_successfully
 
 volumes:
   mysql-primary-veri:
