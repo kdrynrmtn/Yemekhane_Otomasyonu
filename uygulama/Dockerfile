@@ -1,7 +1,7 @@
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+FROM php:8.3-cli-alpine
+
+RUN docker-php-ext-install pdo_mysql
+WORKDIR /var/www/uygulama
 COPY . .
-EXPOSE 5000
-CMD ["python", "app.py"]
+EXPOSE 8000
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "public", "public/index.php"]
