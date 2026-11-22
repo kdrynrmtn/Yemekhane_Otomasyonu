@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../Database.php';
+require_once __DIR__ . '/../RedisOnbellek.php';
 
 class Menu
 {
@@ -19,11 +20,26 @@ class Menu
         )->fetchAll();
     }
 
+    /**
+     * Günlük menü Redis önbelleğini kullanır.
+     * Önbellek anahtarı: menu:{yemekhane_id}:{tarih}:{ogun_id}
+     */
     public function gununMenuDetayiniGetir(
         string $tarih,
         int $yemekhaneId,
         int $ogunId
     ): array {
+        $anahtar = RedisOnbellek::menuAnahtariOlustur(
+            $yemekhaneId,
+            $tarih,
+            $ogunId
+        );
+
+        $onbellekVerisi = RedisOnbellek::menuGetir($anahtar);
+        if ($onbellekVerisi !== null) {
+            return $onbellekVerisi;
+        }
+
         $db = Database::okuma();
         $sorgu = $db->prepare(
             'SELECT menu_id, tarih, yemekhane_id, yemekhane, ogun_id, ogun,
@@ -43,12 +59,16 @@ class Menu
             'ogun_id' => $ogunId,
         ]);
 
-        return $sorgu->fetchAll();
+        $sonuc = $sorgu->fetchAll();
+        RedisOnbellek::menuKaydet($anahtar, $sonuc, $tarih);
+
+        return $sonuc;
     }
 
     /**
-     * Haftalık menüyü, kapasite durumunu ve giriş yapan kullanıcının
-     * rezervasyon durumunu replika üzerinden getirir.
+     * Haftalık menü satırlarını, menü içeriğini Redis'ten;
+     * kapasite ve kullanıcının rezervasyon durumunu replikadan getirir.
+     * Böylece sık değişen doluluk bilgileri önbellekte eski kalmaz.
      */
     public function haftalikMenuGetir(
         string $baslangicTarihi,
@@ -56,49 +76,61 @@ class Menu
         int $kullaniciId
     ): array {
         $db = Database::okuma();
+        $ogunler = $this->ogunleriGetir();
 
-        $sorgu = $db->prepare(
+        $dinamikBilgiSorgu = $db->prepare(
             'SELECT
-                d.menu_id,
-                d.tarih,
-                d.yemekhane_id,
-                d.yemekhane,
-                d.ogun_id,
-                d.ogun,
-                d.ogun_sira,
-                d.rezervasyon_son,
-                d.ogrenci_fiyati,
-                d.personel_fiyati,
-                d.yemek_id,
-                d.yemek,
-                d.kategori,
-                d.kategori_sira,
-                d.kalori,
-                d.vejetaryen,
-                d.alerjenler,
                 dol.kapasite,
                 dol.rezerve,
                 dol.bos_yer,
-                CASE WHEN d.rezervasyon_son > NOW() THEN 1 ELSE 0 END AS rezervasyon_acik,
+                CASE
+                    WHEN dol.rezervasyon_son > CURRENT_TIMESTAMP THEN 1
+                    ELSE 0
+                END AS rezervasyon_acik,
                 r.durum AS kullanici_rezervasyon_durumu
-             FROM v_menu_detay d
-             INNER JOIN v_menu_doluluk dol ON dol.menu_id = d.menu_id
+             FROM v_menu_doluluk dol
              LEFT JOIN rezervasyonlar r
-                    ON r.menu_id = d.menu_id
+                    ON r.menu_id = dol.menu_id
                    AND r.kullanici_id = :kullanici_id
-             WHERE d.tarih BETWEEN :baslangic1
-                               AND DATE_ADD(:baslangic2, INTERVAL 6 DAY)
-               AND d.yemekhane_id = :yemekhane_id
-             ORDER BY d.tarih, d.ogun_sira, d.kategori_sira, d.yemek'
+             WHERE dol.menu_id = :menu_id'
         );
 
-        $sorgu->execute([
-            'kullanici_id' => $kullaniciId,
-            'baslangic1' => $baslangicTarihi,
-            'baslangic2' => $baslangicTarihi,
-            'yemekhane_id' => $yemekhaneId,
-        ]);
+        $baslangic = new DateTimeImmutable($baslangicTarihi, new DateTimeZone('Europe/Istanbul'));
+        $sonuc = [];
 
-        return $sorgu->fetchAll();
+        for ($gunNo = 0; $gunNo < 7; $gunNo++) {
+            $tarih = $baslangic->modify('+' . $gunNo . ' days')->format('Y-m-d');
+
+            foreach ($ogunler as $ogun) {
+                $ogunId = (int)$ogun['id'];
+                $menuSatirlari = $this->gununMenuDetayiniGetir(
+                    $tarih,
+                    $yemekhaneId,
+                    $ogunId
+                );
+
+                if ($menuSatirlari === []) {
+                    continue;
+                }
+
+                $menuId = (int)$menuSatirlari[0]['menu_id'];
+
+                $dinamikBilgiSorgu->execute([
+                    'kullanici_id' => $kullaniciId,
+                    'menu_id' => $menuId,
+                ]);
+                $dinamikBilgi = $dinamikBilgiSorgu->fetch();
+
+                if (!$dinamikBilgi) {
+                    continue;
+                }
+
+                foreach ($menuSatirlari as $satir) {
+                    $sonuc[] = array_merge($satir, $dinamikBilgi);
+                }
+            }
+        }
+
+        return $sonuc;
     }
 }

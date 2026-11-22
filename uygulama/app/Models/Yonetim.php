@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../Database.php';
+require_once __DIR__ . '/../RedisOnbellek.php';
 
 class Yonetim
 {
@@ -126,6 +127,7 @@ class Yonetim
         $temizYemekIds = array_values(array_unique($temizYemekIds));
 
         $db = Database::yazma();
+        $eskiMenu = null;
 
         try {
             $db->beginTransaction();
@@ -168,6 +170,8 @@ class Yonetim
                 if (!$mevcutMenu) {
                     throw new RuntimeException('Düzenlenecek menü bulunamadı.');
                 }
+
+                $eskiMenu = $mevcutMenu;
 
                 $rezervasyonSayisi = $db->prepare(
                     'SELECT COUNT(*) FROM rezervasyonlar WHERE menu_id = :menu_id'
@@ -221,6 +225,34 @@ class Yonetim
             }
 
             $db->commit();
+
+            // Veritabanı kaydı tamamlandıktan sonra eski ve yeni menü önbelleğini sil.
+            if (is_array($eskiMenu)) {
+                RedisOnbellek::menuOnbellekSil(
+                    (int)$eskiMenu['yemekhane_id'],
+                    (string)$eskiMenu['tarih'],
+                    (int)$eskiMenu['ogun_id']
+                );
+            }
+
+            $yeniAnahtar = RedisOnbellek::menuAnahtariOlustur(
+                $yemekhaneId,
+                $tarih,
+                $ogunId
+            );
+
+            $eskiAnahtar = is_array($eskiMenu)
+                ? RedisOnbellek::menuAnahtariOlustur(
+                    (int)$eskiMenu['yemekhane_id'],
+                    (string)$eskiMenu['tarih'],
+                    (int)$eskiMenu['ogun_id']
+                )
+                : null;
+
+            if ($eskiAnahtar !== $yeniAnahtar) {
+                RedisOnbellek::menuOnbellekSil($yemekhaneId, $tarih, $ogunId);
+            }
+
             return $kaydedilenMenuId;
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
