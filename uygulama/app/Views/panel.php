@@ -51,6 +51,10 @@
             <h2>Bakiye</h2>
             <p>Güncel bakiyenizi görün, bakiye yükleyin ve hareket geçmişinizi inceleyin.</p>
         </a>
+        <a class="kart" href="/profil">
+            <h2>Profil ve Alerjen Tercihleri</h2>
+            <p>Alerjenlerinizi seçin; bu alerjenleri içeren yemekler menüde uyarıyla gösterilsin.</p>
+        </a>
         <a class="kart" href="/degerlendirme">
             <h2>Değerlendirme</h2>
             <p>Kullanılmış menülere 1–5 puan verin ve yorumunuzu kaydedin.</p>

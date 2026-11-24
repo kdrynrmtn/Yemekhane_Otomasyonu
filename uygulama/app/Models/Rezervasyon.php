@@ -6,14 +6,15 @@ require_once __DIR__ . '/../Database.php';
 class Rezervasyon
 {
     /** Para hareketini veritabanındaki stored procedure ile oluşturur. */
-    public function olustur(int $kullaniciId, int $menuId): array
+    public function olustur(int $kullaniciId, int $menuId, string $porsiyon = 'tam'): array
     {
         try {
             $db = Database::yazma();
-            $sorgu = $db->prepare('CALL sp_rezervasyon_yap(:kullanici_id, :menu_id)');
+            $sorgu = $db->prepare('CALL sp_rezervasyon_yap(:kullanici_id, :menu_id, :porsiyon)');
             $sorgu->execute([
                 'kullanici_id' => $kullaniciId,
                 'menu_id' => $menuId,
+                'porsiyon' => $porsiyon,
             ]);
 
             $sonuc = $sorgu->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -25,6 +26,7 @@ class Rezervasyon
                 'rezervasyon_id' => (int)($sonuc['rezervasyon_id'] ?? 0),
                 'ucret' => $sonuc['ucret'] ?? null,
                 'bakiye' => $sonuc['bakiye'] ?? null,
+                'porsiyon' => $sonuc['porsiyon'] ?? $porsiyon,
             ];
         } catch (PDOException $e) {
             error_log('Rezervasyon oluşturma hatası: ' . $e->getMessage());
@@ -45,6 +47,7 @@ class Rezervasyon
                 r.menu_id,
                 r.durum,
                 r.ucret,
+                r.porsiyon,
                 r.olusturma,
                 r.iptal_zamani,
                 r.kullanma_zamani,

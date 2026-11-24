@@ -56,6 +56,10 @@ $rol = $kullanici['rol'] ?? '';
         .bilgi { font-size: 13px; color: #68756c; }
         .detaylar { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 8px 0 12px; font-size: 14px; }
         .fiyat { font-weight: 700; color: #173b2b; }
+        .alerjen-uyari { margin-top: 7px; padding: 8px 10px; border-radius: 7px; background: #fff0ed; color: #9a2f20; font-size: 13px; font-weight: 700; }
+        .porsiyon-alani { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .porsiyon-alani label { font-weight: 700; font-size: 14px; }
+        .rezervasyon-fiyat { color: #173b2b; font-weight: 700; }
         .rezervasyon-form { margin-top: 12px; }
         .mesaj { padding: 13px 15px; border-radius: 8px; margin-bottom: 16px; background: #fff3cd; color: #664d03; }
         .mesaj.basarili { background: #d4edda; color: #155724; }
@@ -82,6 +86,7 @@ $rol = $kullanici['rol'] ?? '';
         <a class="link" href="/rezervasyonlarim">Rezervasyonlarım</a>
         <a class="link" href="/bakiye">Bakiyem</a>
         <a class="link" href="/degerlendirme">Değerlendirme</a>
+        <a class="link" href="/profil">Alerjen Tercihlerim</a>
         <?php if (($kullanici['rol'] ?? '') === 'yonetici'): ?>
             <a class="link" href="/yonetici">Yönetici Paneli</a>
         <?php endif; ?>
@@ -148,12 +153,14 @@ $rol = $kullanici['rol'] ?? '';
                 $kullaniciRezervasyonYapmis = in_array($rezervasyonDurumu, ['aktif', 'kullanildi'], true);
                 $sonSaatGecmis = (int)$menu['rezervasyon_acik'] !== 1;
                 $yerYok = (int)$menu['bos_yer'] <= 0;
+                $yarimPorsiyonUygun = in_array((int)$menu['ogun_id'], [2, 3], true);
+                $yarimFiyat = round((float)$fiyat * 0.60, 2);
                 $butonPasif = $kullaniciRezervasyonYapmis || $sonSaatGecmis || $yerYok;
                 ?>
                 <div class="ogun">
                     <div class="ogun-baslik">
                         <h3><?= htmlspecialchars($menu['ogun'], ENT_QUOTES, 'UTF-8') ?></h3>
-                        <span class="fiyat">Ücret: <?= number_format((float)$fiyat, 2, ',', '.') ?> TL</span>
+                        <span class="fiyat">Tam porsiyon: <?= number_format((float)$fiyat, 2, ',', '.') ?> TL</span>
                     </div>
 
                     <div class="detaylar">
@@ -172,6 +179,9 @@ $rol = $kullanici['rol'] ?? '';
                                         · Alerjen: <?= htmlspecialchars($yemek['alerjenler'], ENT_QUOTES, 'UTF-8') ?>
                                     <?php endif; ?>
                                 </div>
+                                <?php if (!empty($yemek['alerjen_uyarilari'])): ?>
+                                    <div class="alerjen-uyari">DİKKAT: Seçtiğiniz alerjenleri içeriyor: <?= htmlspecialchars(implode(', ', $yemek['alerjen_uyarilari']), ENT_QUOTES, 'UTF-8') ?></div>
+                                <?php endif; ?>
                             </div>
                             <span class="bilgi"><?= (int)$yemek['kalori'] ?> kcal</span>
                         </div>
@@ -182,6 +192,27 @@ $rol = $kullanici['rol'] ?? '';
                         <input type="hidden" name="menu_id" value="<?= (int)$menu['menu_id'] ?>">
                         <input type="hidden" name="tarih" value="<?= htmlspecialchars($tarih, ENT_QUOTES, 'UTF-8') ?>">
                         <input type="hidden" name="yemekhane_id" value="<?= (int)$yemekhaneId ?>">
+
+                        <?php if ($yarimPorsiyonUygun): ?>
+                            <div class="porsiyon-alani">
+                                <label for="porsiyon-<?= (int)$menu['menu_id'] ?>">Porsiyon:</label>
+                                <select
+                                    id="porsiyon-<?= (int)$menu['menu_id'] ?>"
+                                    name="porsiyon"
+                                    class="porsiyon-secimi"
+                                    data-tam-fiyat="<?= htmlspecialchars(number_format((float)$fiyat, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    data-yarim-fiyat="<?= htmlspecialchars(number_format($yarimFiyat, 2, '.', ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    <?= $butonPasif ? 'disabled' : '' ?>
+                                >
+                                    <option value="tam">Tam porsiyon</option>
+                                    <option value="yarim">Yarım porsiyon (%60 ücret)</option>
+                                </select>
+                                <span class="rezervasyon-fiyat" data-fiyat-alani>Ödenecek: <?= number_format((float)$fiyat, 2, ',', '.') ?> TL</span>
+                            </div>
+                        <?php else: ?>
+                            <input type="hidden" name="porsiyon" value="tam">
+                            <div class="porsiyon-alani"><span class="bilgi">Kahvaltıda yalnızca tam porsiyon seçilebilir.</span></div>
+                        <?php endif; ?>
 
                         <?php if ($kullaniciRezervasyonYapmis): ?>
                             <button type="button" disabled>Bu öğün için rezervasyonunuz var</button>
@@ -198,5 +229,25 @@ $rol = $kullanici['rol'] ?? '';
         </section>
     <?php endforeach; ?>
 </main>
+<script>
+document.querySelectorAll('.rezervasyon-form').forEach(function (form) {
+    const secim = form.querySelector('.porsiyon-secimi');
+    const fiyatAlani = form.querySelector('[data-fiyat-alani]');
+    if (!secim || !fiyatAlani) return;
+
+    function fiyatGuncelle() {
+        const fiyat = secim.value === 'yarim'
+            ? Number(secim.dataset.yarimFiyat)
+            : Number(secim.dataset.tamFiyat);
+        fiyatAlani.textContent = 'Ödenecek: ' + fiyat.toLocaleString('tr-TR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }) + ' TL';
+    }
+
+    secim.addEventListener('change', fiyatGuncelle);
+    fiyatGuncelle();
+});
+</script>
 </body>
 </html>

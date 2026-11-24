@@ -73,6 +73,7 @@ require_once __DIR__ . '/../app/Controllers/RezervasyonController.php';
 require_once __DIR__ . '/../app/Controllers/BakiyeController.php';
 require_once __DIR__ . '/../app/Controllers/DegerlendirmeController.php';
 require_once __DIR__ . '/../app/Controllers/YoneticiController.php';
+require_once __DIR__ . '/../app/Controllers/ProfilController.php';
 
 $yol = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $giris = new GirisController();
@@ -82,6 +83,7 @@ $rezervasyon = new RezervasyonController();
 $bakiye = new BakiyeController();
 $degerlendirme = new DegerlendirmeController();
 $yonetici = new YoneticiController();
+$profil = new ProfilController();
 
 switch ($yol) {
     case '/':
@@ -143,6 +145,14 @@ switch ($yol) {
 
     case '/yonetici-menu-kaydet':
         $yonetici->menuKaydet();
+        break;
+
+    case '/profil':
+        $profil->index();
+        break;
+
+    case '/profil-alerjen-kaydet':
+        $profil->alerjenKaydet();
         break;
 
     default:

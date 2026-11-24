@@ -64,6 +64,7 @@
 
                 <div class="bilgi">
                     Yemekhane: <?= htmlspecialchars($rezervasyon['yemekhane'], ENT_QUOTES, 'UTF-8') ?><br>
+                    Porsiyon: <?= ($rezervasyon['porsiyon'] ?? 'tam') === 'yarim' ? 'Yarım' : 'Tam' ?><br>
                     Rezervasyon tarihi: <?= date('d.m.Y H:i', strtotime($rezervasyon['olusturma'])) ?><br>
                     Son iptal saati: <?= date('d.m.Y H:i', strtotime($rezervasyon['rezervasyon_son'])) ?>
                     <?php if (!empty($rezervasyon['kullanma_zamani'])): ?>

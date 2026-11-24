@@ -36,7 +36,10 @@
             <h1>Günün Menüsü</h1>
             <p class="alt-baslik">Merhaba, <?= htmlspecialchars($kullanici['ad'], ENT_QUOTES, 'UTF-8') ?>.</p>
         </div>
-        <a class="geri" href="/panel">← Panele dön</a>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <a class="geri" href="/profil">Alerjen tercihlerim</a>
+            <a class="geri" href="/panel">← Panele dön</a>
+        </div>
     </header>
 
     <form class="filtreler" method="get" action="/gunun-menusu">
@@ -104,6 +107,11 @@
                             <span class="etiket">Kayıtlı alerjen yok</span>
                         <?php endif; ?>
                     </div>
+                    <?php if (!empty($yemek['alerjen_uyarilari'])): ?>
+                        <div class="alerjen-uyari" style="margin-top:8px;padding:9px;background:#fff0ed;color:#9a2f20;border-radius:7px;font-weight:700">
+                            DİKKAT: Seçtiğiniz alerjenleri içeriyor: <?= htmlspecialchars(implode(', ', $yemek['alerjen_uyarilari']), ENT_QUOTES, 'UTF-8') ?>
+                        </div>
+                    <?php endif; ?>
                 </article>
             <?php endforeach; ?>
         </section>

@@ -45,7 +45,7 @@ class Menu
             'SELECT menu_id, tarih, yemekhane_id, yemekhane, ogun_id, ogun,
                     rezervasyon_son, ogrenci_fiyati, personel_fiyati,
                     yemek_id, yemek, kategori, kategori_sira, kalori,
-                    vejetaryen, alerjenler
+                    vejetaryen, alerjenler, alerjen_idler
              FROM v_menu_detay
              WHERE tarih = :tarih
                AND yemekhane_id = :yemekhane_id

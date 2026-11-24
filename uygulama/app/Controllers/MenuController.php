@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../Models/Menu.php';
 require_once __DIR__ . '/../Models/Rezervasyon.php';
 require_once __DIR__ . '/../Models/Bakiye.php';
+require_once __DIR__ . '/../Models/Profil.php';
 
 class MenuController
 {
@@ -55,12 +56,14 @@ class MenuController
             $hata = 'Menü bilgileri şu anda alınamıyor. Lütfen tekrar deneyin.';
         }
 
+        $kullanici = $_SESSION['kullanici'];
+        $yemekler = $this->alerjenUyarilariniEkle($yemekler, (int)$kullanici['id']);
+
         $toplamKalori = 0;
         foreach ($yemekler as $yemek) {
             $toplamKalori += (int)$yemek['kalori'];
         }
 
-        $kullanici = $_SESSION['kullanici'];
         require __DIR__ . '/../Views/gunun-menusu.php';
     }
 
@@ -106,6 +109,8 @@ class MenuController
             error_log('Haftalık menü alınırken hata: ' . $e->getMessage());
             $hata = 'Haftalık menü bilgileri şu anda alınamıyor.';
         }
+
+        $yemekler = $this->alerjenUyarilariniEkle($yemekler, (int)$kullanici['id']);
 
         $bildirim = $this->bildirimAl();
 
@@ -158,6 +163,13 @@ class MenuController
             $geriDon .= '&yemekhane_id=' . $yemekhaneId;
         }
 
+        $porsiyon = $_POST['porsiyon'] ?? 'tam';
+        if (!is_string($porsiyon) || !in_array($porsiyon, ['tam', 'yarim'], true)) {
+            $this->bildirimAyarla('hata', 'Porsiyon seçimi geçersiz.');
+            header('Location: ' . $geriDon);
+            exit;
+        }
+
         $menuId = filter_var($_POST['menu_id'] ?? null, FILTER_VALIDATE_INT);
         if ($menuId === false || $menuId === null || $menuId <= 0) {
             $this->bildirimAyarla('hata', 'Geçersiz menü bilgisi.');
@@ -167,7 +179,7 @@ class MenuController
 
         try {
             $model = new Rezervasyon();
-            $sonuc = $model->olustur((int)$_SESSION['kullanici']['id'], $menuId);
+            $sonuc = $model->olustur((int)$_SESSION['kullanici']['id'], $menuId, $porsiyon);
             $this->bildirimAyarla(
                 $sonuc['basarili'] ? 'basarili' : 'hata',
                 $sonuc['mesaj']
@@ -179,6 +191,49 @@ class MenuController
 
         header('Location: ' . $geriDon);
         exit;
+    }
+
+
+    /** Kullanıcının seçtiği alerjenlerle eşleşen yemekleri işaretler. */
+    private function alerjenUyarilariniEkle(array $yemekler, int $kullaniciId): array
+    {
+        if ($yemekler === []) {
+            return $yemekler;
+        }
+
+        try {
+            $profil = new Profil();
+            $tercihler = $profil->kullaniciAlerjenleriniGetir($kullaniciId);
+        } catch (Throwable $e) {
+            error_log('Kullanıcı alerjen tercihleri okunamadı: ' . $e->getMessage());
+            return $yemekler;
+        }
+
+        $alerjenHaritasi = [];
+        foreach ($tercihler as $tercih) {
+            $alerjenHaritasi[(int)$tercih['id']] = $tercih['ad'];
+        }
+
+        foreach ($yemekler as &$yemek) {
+            $yemek['alerjen_uyarilari'] = [];
+            $hamIdler = (string)($yemek['alerjen_idler'] ?? '');
+            if ($hamIdler === '' || $alerjenHaritasi === []) {
+                continue;
+            }
+
+            $yemekAlerjenIdleri = array_filter(
+                array_map('intval', explode(',', $hamIdler)),
+                static fn(int $id): bool => $id > 0
+            );
+            foreach ($yemekAlerjenIdleri as $id) {
+                if (isset($alerjenHaritasi[$id])) {
+                    $yemek['alerjen_uyarilari'][] = $alerjenHaritasi[$id];
+                }
+            }
+        }
+        unset($yemek);
+
+        return $yemekler;
     }
 
     private function csrfGecerliMi(): bool
